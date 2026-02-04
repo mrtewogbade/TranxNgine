@@ -1,0 +1,4 @@
+set -e 
+
+echo "→ lint-staged"
+pnpm lint-staged
