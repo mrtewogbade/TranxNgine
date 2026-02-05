@@ -161,8 +161,7 @@ export class WalletService {
     const cached =
       await this.redisService.getCachedIdempotencyResult(idempotencyKey);
     if (cached) {
-      // Return cached transaction log with ledgers
-      return cached;
+      return cached as unknown as TransactionLog;
     }
 
     // Not in cache, check database
@@ -176,7 +175,6 @@ export class WalletService {
       ],
     });
 
-    // Cache the result if found
     if (transactionLog) {
       await this.redisService.cacheIdempotencyResult(
         idempotencyKey,
