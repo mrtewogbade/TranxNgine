@@ -1,10 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SequelizeModule } from '@nestjs/sequelize';
-import { WalletService } from './wallet.service';
+import { WalletService, TransferResponse } from './wallet.service';
 import { Wallet } from '../models/wallet.model';
 import { Ledger, TransactionType } from '../models/ledger.model';
+import { TransactionLog } from '../models/transaction-log.model';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Sequelize } from 'sequelize-typescript';
+import { RedisService } from './redis.service';
 
 describe('WalletService', () => {
   let service: WalletService;
@@ -20,19 +22,61 @@ describe('WalletService', () => {
           username: process.env.DB_USERNAME || 'postgres',
           password: process.env.DB_PASSWORD || 'postgres',
           database: process.env.DB_DATABASE_TEST || 'wallet_system_test',
-          models: [Wallet, Ledger],
+          models: [Wallet, Ledger, TransactionLog],
           logging: false,
           sync: { force: true }, // Recreate tables for testing
         }),
-        SequelizeModule.forFeature([Wallet, Ledger]),
+        SequelizeModule.forFeature([Wallet, Ledger, TransactionLog]),
       ],
-      providers: [WalletService],
+      providers: [
+        WalletService,
+        // in-memory RedisService mock for tests
+        {
+          provide: RedisService,
+          useValue: new (class {
+            private store = new Map<string, string>();
+            async cacheWalletBalance(k: string, v: string) {
+              this.store.set(k, v);
+            }
+            async getCachedWalletBalance(k: string) {
+              return this.store.get(k) ?? null;
+            }
+            async invalidateWalletBalance(k: string) {
+              this.store.delete(`wallet:balance:${k}`);
+            }
+            async cacheIdempotencyResult(k: string, v: any) {
+              this.store.set(`idempotency:${k}`, JSON.stringify(v));
+            }
+            async getCachedIdempotencyResult(k: string) {
+              const v = this.store.get(`idempotency:${k}`);
+              return v ? JSON.parse(v) : null;
+            }
+            async cacheTransferResult(k: string, v: any) {
+              this.store.set(`transfer:${k}`, JSON.stringify(v));
+            }
+            async getCachedTransferResult(k: string) {
+              const v = this.store.get(`transfer:${k}`);
+              return v ? JSON.parse(v) : null;
+            }
+            async checkRateLimit() {
+              return true;
+            }
+            async set() {}
+            async get() {
+              return null;
+            }
+            async del() {}
+            async reset() {
+              this.store.clear();
+            }
+          })(),
+        },
+      ],
     }).compile();
 
     service = module.get<WalletService>(WalletService);
     sequelize = module.get<Sequelize>(Sequelize);
 
-    // Ensure tables are created
     await sequelize.sync({ force: true });
   });
 
@@ -63,7 +107,7 @@ describe('WalletService', () => {
 
       expect(wallet.balance).toBe('100.50');
 
-      // Should have an initial ledger entry
+      // an initial ledger entry
       const ledgers = await Ledger.findAll({ where: { walletId: wallet.id } });
       expect(ledgers.length).toBe(1);
       expect(ledgers[0].type).toBe(TransactionType.CREDIT);
@@ -84,10 +128,10 @@ describe('WalletService', () => {
 
     it('should prevent duplicate wallets for same user', async () => {
       await service.createWallet({ userId: 'user5' });
-      
-      await expect(
-        service.createWallet({ userId: 'user5' }),
-      ).rejects.toThrow(BadRequestException);
+
+      await expect(service.createWallet({ userId: 'user5' })).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -116,9 +160,9 @@ describe('WalletService', () => {
     });
 
     it('should throw NotFoundException for non-existent user', async () => {
-      await expect(
-        service.getWalletByUserId('nonexistent'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.getWalletByUserId('nonexistent')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -285,6 +329,7 @@ describe('WalletService', () => {
         toWalletId: wallet2.id,
         amount: '25.00',
         description: 'Test transfer',
+        idempotencyKey: 'test-transfer-success-1',
       });
 
       expect(result.debit.type).toBe(TransactionType.DEBIT);
@@ -316,7 +361,9 @@ describe('WalletService', () => {
         service.transfer({
           fromWalletId: wallet1.id,
           toWalletId: wallet2.id,
-          amount: '100.00',
+          amount: '25.00',
+          description: 'Test transfer',
+          idempotencyKey: 'test-transfer-success-1',
         }),
       ).rejects.toThrow(BadRequestException);
     });
@@ -331,7 +378,9 @@ describe('WalletService', () => {
         service.transfer({
           fromWalletId: wallet.id,
           toWalletId: wallet.id,
-          amount: '50.00',
+          amount: '25.00',
+          description: 'Test transfer',
+          idempotencyKey: 'test-transfer-success-1',
         }),
       ).rejects.toThrow(BadRequestException);
     });
@@ -348,6 +397,7 @@ describe('WalletService', () => {
           fromWalletId: wallet1.id,
           toWalletId: '00000000-0000-0000-0000-000000000000',
           amount: '50.00',
+          idempotencyKey: 'test-transfer-error-1',
         }),
       ).rejects.toThrow();
 
@@ -413,7 +463,8 @@ describe('WalletService', () => {
       });
 
       // Simulate concurrent credits
-      const promises = [];
+
+      const promises: Promise<Ledger>[] = [];
       for (let i = 0; i < 10; i++) {
         promises.push(
           service.creditWallet({
@@ -422,6 +473,7 @@ describe('WalletService', () => {
           }),
         );
       }
+      await Promise.all(promises);
 
       await Promise.all(promises);
 
@@ -436,7 +488,7 @@ describe('WalletService', () => {
       });
 
       // Simulate concurrent debits
-      const promises = [];
+      const promises: Promise<Ledger>[] = [];
       for (let i = 0; i < 10; i++) {
         promises.push(
           service.debitWallet({

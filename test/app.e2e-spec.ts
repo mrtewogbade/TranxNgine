@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppModule } from '../src/app.module';
 
 describe('Wallet System (e2e)', () => {
@@ -34,7 +34,7 @@ describe('Wallet System (e2e)', () => {
       expect(response.body.success).toBe(true);
       expect(response.body.data.userId).toBe('e2e-user-1');
       expect(response.body.data.balance).toBe('100.00');
-      
+
       walletId = response.body.data.id;
     });
 

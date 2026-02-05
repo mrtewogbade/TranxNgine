@@ -4,7 +4,7 @@ import type { Cache } from 'cache-manager';
 
 /**
  * RedisService
- * Provides Redis caching operations for the wallet system
+ *
  *
  * Use Cases:
  * 1. Wallet balance caching - Faster balance lookups
@@ -21,7 +21,7 @@ export class RedisService {
    */
   async cacheWalletBalance(walletId: string, balance: string): Promise<void> {
     const key = `wallet:balance:${walletId}`;
-    await this.cacheManager.set(key, balance, 60); // 60 seconds TTL
+    await this.cacheManager.set(key, balance, 60);
   }
 
   /**
@@ -34,7 +34,7 @@ export class RedisService {
 
   /**
    * Invalidate wallet balance cache
-   * Call this after any balance update
+   * Called after balance changes (e.g., transfers) to ensure cache consistency
    */
   async invalidateWalletBalance(walletId: string): Promise<void> {
     const key = `wallet:balance:${walletId}`;
@@ -77,17 +77,14 @@ export class RedisService {
     const current = await this.cacheManager.get<number>(key);
 
     if (!current) {
-      // First request in window
       await this.cacheManager.set(key, 1, windowSeconds);
       return true;
     }
 
     if (current >= maxRequests) {
-      // Rate limit exceeded
       return false;
     }
 
-    // Increment counter
     await this.cacheManager.set(key, current + 1, windowSeconds);
     return true;
   }
@@ -139,6 +136,32 @@ export class RedisService {
    * Clear all cache
    */
   async reset(): Promise<void> {
-    await (this.cacheManager as any).reset();
+    const cm: any = this.cacheManager;
+    if (typeof cm.reset === 'function') {
+      await cm.reset();
+      return;
+    }
+    if (cm.store && typeof cm.store.reset === 'function') {
+      await cm.store.reset();
+      return;
+    }
+
+    if (
+      cm.store &&
+      cm.store.getClient &&
+      typeof cm.store.getClient === 'function'
+    ) {
+      const client = cm.store.getClient();
+      if (client && typeof client.flushdb === 'function') {
+        await client.flushdb();
+        return;
+      }
+      if (client && typeof client.flushAll === 'function') {
+        await client.flushAll();
+        return;
+      }
+    }
+
+    return;
   }
 }

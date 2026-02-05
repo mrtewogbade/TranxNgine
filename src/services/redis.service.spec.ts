@@ -20,7 +20,6 @@ describe('RedisService', () => {
   });
 
   beforeEach(async () => {
-    // Clear cache before each test
     await service.reset();
   });
 
@@ -82,14 +81,11 @@ describe('RedisService', () => {
 
     it('should block requests exceeding limit', async () => {
       const identifier = 'user-2';
-
-      // Make 5 requests (limit)
       for (let i = 0; i < 5; i++) {
         const allowed = await service.checkRateLimit(identifier, 5, 60);
         expect(allowed).toBe(true);
       }
 
-      // 6th request should be blocked
       const blocked = await service.checkRateLimit(identifier, 5, 60);
       expect(blocked).toBe(false);
     });
@@ -97,22 +93,16 @@ describe('RedisService', () => {
     it('should reset after window expires', async () => {
       const identifier = 'user-3';
 
-      // Use up limit with 1 second window
       for (let i = 0; i < 3; i++) {
         await service.checkRateLimit(identifier, 3, 1);
       }
-
-      // Should be blocked immediately
       const blocked = await service.checkRateLimit(identifier, 3, 1);
       expect(blocked).toBe(false);
 
-      // Wait for window to expire
       await new Promise((resolve) => setTimeout(resolve, 1100));
-
-      // Should be allowed again
       const allowed = await service.checkRateLimit(identifier, 3, 1);
       expect(allowed).toBe(true);
-    }, 10000); // Increase timeout for this test
+    }, 10000);
   });
 
   describe('Generic Cache Operations', () => {
@@ -138,7 +128,8 @@ describe('RedisService', () => {
 
       await service.set('complex-obj', JSON.stringify(obj));
       const cached = await service.get<string>('complex-obj');
-      expect(JSON.parse(cached)).toEqual(obj);
+      expect(cached).not.toBeNull();
+      expect(JSON.parse(cached as string)).toEqual(obj);
     });
   });
 

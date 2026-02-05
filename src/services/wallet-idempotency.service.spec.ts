@@ -1,8 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SequelizeModule } from '@nestjs/sequelize';
-import { WalletService } from './wallet.service';
+import { WalletService, TransferResponse } from './wallet.service';
 import { Wallet } from '../models/wallet.model';
-import { Ledger, TransactionType, TransactionStatus } from '../models/ledger.model';
+import {
+  Ledger,
+  TransactionType,
+  TransactionStatus,
+} from '../models/ledger.model';
 import { TransactionLog } from '../models/transaction-log.model';
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Sequelize } from 'sequelize-typescript';
@@ -28,7 +32,49 @@ describe('WalletService - Idempotency Tests (Part A)', () => {
         }),
         SequelizeModule.forFeature([Wallet, Ledger, TransactionLog]),
       ],
-      providers: [WalletService],
+      providers: [
+        WalletService,
+        {
+          provide: require('../services/redis.service').RedisService,
+          useValue: new (class {
+            private store = new Map<string, string>();
+            async cacheWalletBalance(k: string, v: string) {
+              this.store.set(k, v);
+            }
+            async getCachedWalletBalance(k: string) {
+              return this.store.get(k) ?? null;
+            }
+            async invalidateWalletBalance(k: string) {
+              this.store.delete(`wallet:balance:${k}`);
+            }
+            async cacheIdempotencyResult(k: string, v: any) {
+              this.store.set(`idempotency:${k}`, JSON.stringify(v));
+            }
+            async getCachedIdempotencyResult(k: string) {
+              const v = this.store.get(`idempotency:${k}`);
+              return v ? JSON.parse(v) : null;
+            }
+            async cacheTransferResult(k: string, v: any) {
+              this.store.set(`transfer:${k}`, JSON.stringify(v));
+            }
+            async getCachedTransferResult(k: string) {
+              const v = this.store.get(`transfer:${k}`);
+              return v ? JSON.parse(v) : null;
+            }
+            async checkRateLimit() {
+              return true;
+            }
+            async set() {}
+            async get() {
+              return null;
+            }
+            async del() {}
+            async reset() {
+              this.store.clear();
+            }
+          })(),
+        },
+      ],
     }).compile();
 
     service = module.get<WalletService>(WalletService);
@@ -74,7 +120,6 @@ describe('WalletService - Idempotency Tests (Part A)', () => {
       expect(result.credit.amount).toBe('100.00');
       expect(result.credit.balanceAfter).toBe('600.00');
 
-      // Verify balances
       const updatedWallet1 = await service.getWalletById(wallet1.id);
       const updatedWallet2 = await service.getWalletById(wallet2.id);
       expect(updatedWallet1.balance).toBe('900.00');
@@ -115,7 +160,6 @@ describe('WalletService - Idempotency Tests (Part A)', () => {
 
       const idempotencyKey = uuidv4();
 
-      // First transfer
       const result1 = await service.transfer({
         fromWalletId: wallet1.id,
         toWalletId: wallet2.id,
@@ -123,22 +167,18 @@ describe('WalletService - Idempotency Tests (Part A)', () => {
         idempotencyKey,
       });
 
-      // Second transfer with same key (simulates double-tap)
       const result2 = await service.transfer({
         fromWalletId: wallet1.id,
         toWalletId: wallet2.id,
         amount: '100.00',
         idempotencyKey,
       });
-
-      // Should return same transaction
       expect(result2.idempotencyKey).toBe(result1.idempotencyKey);
       expect(result2.debit.id).toBe(result1.debit.id);
       expect(result2.credit.id).toBe(result1.credit.id);
 
-      // Verify balance unchanged (no double-debit)
       const wallet = await service.getWalletById(wallet1.id);
-      expect(wallet.balance).toBe('900.00'); // 1000 - 100, not 1000 - 200
+      expect(wallet.balance).toBe('900.00');
     });
 
     it('should create TransactionLog in PENDING state before transaction', async () => {
@@ -161,11 +201,10 @@ describe('WalletService - Idempotency Tests (Part A)', () => {
         idempotencyKey,
       });
 
-      // Verify TransactionLog was created and is now COMPLETED
       const log = await TransactionLog.findOne({ where: { idempotencyKey } });
       expect(log).toBeDefined();
-      expect(log.status).toBe(TransactionStatus.COMPLETED);
-      expect(log.amount).toBe('100.00');
+      expect(log!.status).toBe(TransactionStatus.COMPLETED);
+      expect(log!.amount).toBe('100.00');
     });
 
     it('should handle concurrent transfer attempts with same key', async () => {
@@ -181,7 +220,6 @@ describe('WalletService - Idempotency Tests (Part A)', () => {
 
       const idempotencyKey = uuidv4();
 
-      // First request completes
       const result1 = await service.transfer({
         fromWalletId: wallet1.id,
         toWalletId: wallet2.id,
@@ -189,7 +227,6 @@ describe('WalletService - Idempotency Tests (Part A)', () => {
         idempotencyKey,
       });
 
-      // Second request with same key returns existing
       const result2 = await service.transfer({
         fromWalletId: wallet1.id,
         toWalletId: wallet2.id,
@@ -198,8 +235,7 @@ describe('WalletService - Idempotency Tests (Part A)', () => {
       });
 
       expect(result1.debit.id).toBe(result2.debit.id);
-      
-      // Balance should only be debited once
+
       const wallet = await service.getWalletById(wallet1.id);
       expect(wallet.balance).toBe('900.00');
     });
@@ -212,7 +248,6 @@ describe('WalletService - Idempotency Tests (Part A)', () => {
         initialBalance: '100.00',
       });
 
-      // Try to debit more than balance with two concurrent requests
       const debit1 = service.debitWallet({
         walletId: wallet.id,
         amount: '60.00',
@@ -227,14 +262,13 @@ describe('WalletService - Idempotency Tests (Part A)', () => {
 
       // One should succeed, one should fail
       const results = await Promise.allSettled([debit1, debit2]);
-      
+
       const successes = results.filter((r) => r.status === 'fulfilled');
       const failures = results.filter((r) => r.status === 'rejected');
 
       expect(successes.length).toBe(1);
       expect(failures.length).toBe(1);
 
-      // Final balance should be 40 (100 - 60), not negative
       const finalWallet = await service.getWalletById(wallet.id);
       expect(finalWallet.balance).toBe('40.00');
     });
@@ -250,8 +284,7 @@ describe('WalletService - Idempotency Tests (Part A)', () => {
         initialBalance: '500.00',
       });
 
-      // Multiple concurrent transfers
-      const transfers = [];
+      const transfers: Promise<TransferResponse>[] = [];
       for (let i = 0; i < 5; i++) {
         transfers.push(
           service.transfer({
@@ -265,12 +298,11 @@ describe('WalletService - Idempotency Tests (Part A)', () => {
 
       await Promise.all(transfers);
 
-      // Verify final balances
       const finalWallet1 = await service.getWalletById(wallet1.id);
       const finalWallet2 = await service.getWalletById(wallet2.id);
 
-      expect(finalWallet1.balance).toBe('750.00'); // 1000 - (5 * 50)
-      expect(finalWallet2.balance).toBe('750.00'); // 500 + (5 * 50)
+      expect(finalWallet1.balance).toBe('750.00');
+      expect(finalWallet2.balance).toBe('750.00');
     });
   });
 
@@ -283,23 +315,20 @@ describe('WalletService - Idempotency Tests (Part A)', () => {
 
       const idempotencyKey = uuidv4();
 
-      // First credit
       await service.creditWallet({
         walletId: wallet.id,
         amount: '50.00',
         idempotencyKey,
       });
 
-      // Duplicate credit (double-tap)
       await service.creditWallet({
         walletId: wallet.id,
         amount: '50.00',
         idempotencyKey,
       });
 
-      // Balance should only increase once
       const updatedWallet = await service.getWalletById(wallet.id);
-      expect(updatedWallet.balance).toBe('150.00'); // Not 200.00
+      expect(updatedWallet.balance).toBe('150.00');
     });
 
     it('should handle debit with idempotency key', async () => {
@@ -309,8 +338,6 @@ describe('WalletService - Idempotency Tests (Part A)', () => {
       });
 
       const idempotencyKey = uuidv4();
-
-      // First debit
       await service.debitWallet({
         walletId: wallet.id,
         amount: '30.00',
@@ -324,7 +351,6 @@ describe('WalletService - Idempotency Tests (Part A)', () => {
         idempotencyKey,
       });
 
-      // Balance should only decrease once
       const updatedWallet = await service.getWalletById(wallet.id);
       expect(updatedWallet.balance).toBe('70.00'); // Not 40.00
     });
@@ -378,13 +404,14 @@ describe('WalletService - Idempotency Tests (Part A)', () => {
         idempotencyKey,
       });
 
-      const transaction = await service.getTransactionByIdempotencyKey(idempotencyKey);
+      const transaction =
+        await service.getTransactionByIdempotencyKey(idempotencyKey);
 
       expect(transaction.idempotencyKey).toBe(idempotencyKey);
       expect(transaction.operation).toBe('TRANSFER');
       expect(transaction.amount).toBe('100.00');
       expect(transaction.status).toBe(TransactionStatus.COMPLETED);
-      expect(transaction.ledgers).toHaveLength(2); // Debit and credit
+      expect(transaction.ledgers).toHaveLength(2);
     });
   });
 
@@ -413,7 +440,8 @@ describe('WalletService - Idempotency Tests (Part A)', () => {
 
       // Transaction log should be marked as FAILED
       const log = await TransactionLog.findOne({ where: { idempotencyKey } });
-      expect(log.status).toBe(TransactionStatus.FAILED);
+      expect(log).toBeDefined();
+      expect(log!.status).toBe(TransactionStatus.FAILED);
     });
 
     it('should not allow reuse of failed idempotency key', async () => {
@@ -444,7 +472,7 @@ describe('WalletService - Idempotency Tests (Part A)', () => {
         service.transfer({
           fromWalletId: wallet1.id,
           toWalletId: wallet2.id,
-          amount: '40.00', // Now within balance
+          amount: '40.00',
           idempotencyKey,
         }),
       ).rejects.toThrow(BadRequestException);
@@ -483,7 +511,6 @@ describe('WalletService - Idempotency Tests (Part A)', () => {
       // Both complete successfully but only one transaction occurs
       await Promise.all([transfer1, transfer2]);
 
-      // Verify only charged once
       const userWallet = await service.getWalletById(wallet1.id);
       const merchantWallet = await service.getWalletById(wallet2.id);
 
@@ -522,7 +549,7 @@ describe('WalletService - Idempotency Tests (Part A)', () => {
 
       // Both return same transaction
       expect(result1.transactionLogId).toBe(result2.transactionLogId);
-      
+
       // Only one debit occurred
       const wallet = await service.getWalletById(wallet1.id);
       expect(wallet.balance).toBe('900.00');

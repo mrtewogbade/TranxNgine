@@ -476,9 +476,9 @@ export class WalletService {
       }
     }
 
-    // Use database transaction for atomic operation
+    // database transaction for atomic operation
     return await this.sequelize.transaction(async (transaction) => {
-      // STEP 1: Create TransactionLog in PENDING state BEFORE main transaction
+     // Here, i'm creating TransactionLog in PENDING state BEFORE main transaction
       // This ensures we have a record even if the database connection drops
       const transactionLog = await this.transactionLogModel.create(
         {
@@ -498,14 +498,12 @@ export class WalletService {
         { transaction },
       );
 
-      // STEP 2: Lock BOTH wallets in consistent order to prevent deadlocks
-      // Always lock in sorted order to avoid circular wait conditions
+      // Then, I Lock BOTH wallets in consistent order to prevent deadlocks
       // Wallet A -> Wallet B and Wallet B -> Wallet A would deadlock
-      // But always locking in alphabetical order prevents this
       const [wallet1Id, wallet2Id] = [fromWalletId, toWalletId].sort();
       const wallets = await this.walletModel.findAll({
         where: { id: [wallet1Id, wallet2Id] },
-        lock: transaction.LOCK.UPDATE, // Exclusive row-level lock
+        lock: transaction.LOCK.UPDATE, 
         transaction,
       });
 
@@ -534,7 +532,7 @@ export class WalletService {
         throw new NotFoundException('One or both wallets not found');
       }
 
-      // STEP 3: Check sufficient funds (RACE CONDITION PREVENTION)
+      // Next, I'm Checking sufficient funds (RACE CONDITION PREVENTION)
       // The lock ensures no other transaction can modify balance until we commit
       // This prevents the classic double-spending problem
       if (MoneyMath.lessThan(fromWallet.balance, amount)) {
@@ -551,17 +549,17 @@ export class WalletService {
         throw new BadRequestException('Insufficient funds');
       }
 
-      // STEP 4: Debit from source wallet
+      // Debit from source wallet
       const fromBalanceBefore = fromWallet.balance;
       const fromBalanceAfter = MoneyMath.subtract(fromBalanceBefore, amount);
       await fromWallet.update({ balance: fromBalanceAfter }, { transaction });
 
-      // STEP 5: Credit to destination wallet
+      // Credit to destination wallet
       const toBalanceBefore = toWallet.balance;
       const toBalanceAfter = MoneyMath.add(toBalanceBefore, amount);
       await toWallet.update({ balance: toBalanceAfter }, { transaction });
 
-      // STEP 6: Create debit ledger entry
+      // Create debit ledger entry
       const debitLedger = await this.ledgerModel.create(
         {
           walletId: fromWalletId,
@@ -578,7 +576,7 @@ export class WalletService {
         { transaction },
       );
 
-      // STEP 7: Create credit ledger entry
+      // Creating credit ledger entry
       const creditLedger = await this.ledgerModel.create(
         {
           walletId: toWalletId,
@@ -595,17 +593,17 @@ export class WalletService {
         { transaction },
       );
 
-      // STEP 8: Update TransactionLog to COMPLETED
+      // Updating TransactionLog to COMPLETED
       await transactionLog.update(
         { status: TransactionStatus.COMPLETED },
         { transaction },
       );
 
-      // Invalidate both wallet balance caches after transfer
+      // Invalidating both wallet balance caches after transfer
       await this.redisService.invalidateWalletBalance(fromWalletId);
       await this.redisService.invalidateWalletBalance(toWalletId);
 
-      // Cache the transfer result for quick lookups
+      // Caching the transfer result for quick lookups
       const result = {
         transactionLogId: transactionLog.id,
         debit: debitLedger,
@@ -623,20 +621,20 @@ export class WalletService {
    * Get wallet balance with Redis caching
    */
   async getBalance(walletId: string): Promise<string> {
-    // Try to get from cache first
+  
     const cachedBalance =
       await this.redisService.getCachedWalletBalance(walletId);
     if (cachedBalance) {
       return cachedBalance;
     }
 
-    // Not in cache, get from database
+    // if not in the cache, get from database
     const wallet = await this.walletModel.findByPk(walletId);
     if (!wallet) {
       throw new NotFoundException('Wallet not found');
     }
 
-    // Cache the balance
+    // Caching the balance
     await this.redisService.cacheWalletBalance(walletId, wallet.balance);
 
     return wallet.balance;

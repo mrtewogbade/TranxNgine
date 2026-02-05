@@ -3,7 +3,7 @@ import Decimal from 'decimal.js';
 /**
  * MoneyMath - Utility class for precise monetary calculations
  * Uses decimal.js to avoid floating-point precision errors
- * 
+ *
  * All amounts are stored and calculated as strings to maintain precision
  * The database DECIMAL(20,2) type ensures 2 decimal places
  */
@@ -145,7 +145,7 @@ export class MoneyMath {
     const p = new Decimal(principal);
     const r = new Decimal(annualRate);
     const d = new Decimal(days);
-    
+
     // Interest = P * r * (days/365)
     return p.times(r).times(d.dividedBy(365)).toFixed(2);
   }
@@ -165,18 +165,18 @@ export class MoneyMath {
     endDate: Date,
   ): string {
     Decimal.set(this.config);
-    
+
     // Calculate days between dates
     const days = this.getDaysBetween(startDate, endDate);
-    
+
     // Determine if we need to account for leap years
     const daysInYear = this.hasLeapYearBetween(startDate, endDate) ? 366 : 365;
-    
+
     const p = new Decimal(principal);
     const r = new Decimal(annualRate);
     const d = new Decimal(days);
     const diy = new Decimal(daysInYear);
-    
+
     // Interest = P * r * (days/daysInYear)
     return p.times(r).times(d.dividedBy(diy)).toFixed(2);
   }
@@ -186,7 +186,13 @@ export class MoneyMath {
    */
   private static getDaysBetween(start: Date, end: Date): number {
     const oneDay = 24 * 60 * 60 * 1000; // milliseconds in a day
-    return Math.round(Math.abs((end.getTime() - start.getTime()) / oneDay));
+    // Use floor for stable day differences and treat range as inclusive of start and end
+    // so that a full-year from Jan 1 to Dec 31 returns 365/366 correctly as expected
+    const diff = Math.floor(
+      Math.abs((end.getTime() - start.getTime()) / oneDay),
+    );
+    // count inclusive days when end >= start
+    return diff + 1;
   }
 
   /**
@@ -195,7 +201,7 @@ export class MoneyMath {
   private static hasLeapYearBetween(start: Date, end: Date): boolean {
     const startYear = start.getFullYear();
     const endYear = end.getFullYear();
-    
+
     for (let year = startYear; year <= endYear; year++) {
       if (this.isLeapYear(year)) {
         // Check if Feb 29 falls within the date range
