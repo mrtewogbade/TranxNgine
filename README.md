@@ -6,9 +6,7 @@ This repository contains the practical assessment implementation for the Sycamor
 - **Quick start**: install, env, run, and test commands.
 - **Assessment tasks**: overview of the Idempotent Wallet and Interest Accumulator.
 - **Design notes**: idempotency, concurrency control, and math precision.
-- **Submission checklist**: what to include before submitting.
 
-**Timeline:** Submit by 12:00 PM Thursday, 5th February 2026.
 
 **Prerequisites**
 - Node.js (v18+ recommended)
@@ -134,11 +132,6 @@ If you re-send the same request with the same `X-Idempotency-Key`, the service r
   - `src/utils/money-math.util.spec.ts` — math correctness including leap-year scenarios.
   - Service-level tests for idempotency and transfer error handling.
 
-
-
-
-
----
 
 
 
