@@ -11,8 +11,10 @@ export function setupSwagger(app: INestApplication) {
     ? 'Production server'
     : 'Local development server';
   const config = new DocumentBuilder()
-    .setTitle('Finnovate Africa API')
-    .setDescription('API documentation for Finnovate Africa backend')
+    .setTitle('TranxNgine API')
+    .setDescription(
+      'API documentation for TranxNgine, the ultimate wallet management system.',
+    )
     .setVersion('1.0.0')
     .addServer(baseUrl, description)
     .addBearerAuth(
