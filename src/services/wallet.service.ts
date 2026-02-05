@@ -478,7 +478,7 @@ export class WalletService {
 
     // database transaction for atomic operation
     return await this.sequelize.transaction(async (transaction) => {
-     // Here, i'm creating TransactionLog in PENDING state BEFORE main transaction
+      // Here, i'm creating TransactionLog in PENDING state BEFORE main transaction
       // This ensures we have a record even if the database connection drops
       const transactionLog = await this.transactionLogModel.create(
         {
@@ -503,7 +503,7 @@ export class WalletService {
       const [wallet1Id, wallet2Id] = [fromWalletId, toWalletId].sort();
       const wallets = await this.walletModel.findAll({
         where: { id: [wallet1Id, wallet2Id] },
-        lock: transaction.LOCK.UPDATE, 
+        lock: transaction.LOCK.UPDATE,
         transaction,
       });
 
@@ -621,7 +621,6 @@ export class WalletService {
    * Get wallet balance with Redis caching
    */
   async getBalance(walletId: string): Promise<string> {
-  
     const cachedBalance =
       await this.redisService.getCachedWalletBalance(walletId);
     if (cachedBalance) {

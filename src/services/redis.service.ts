@@ -58,7 +58,7 @@ export class RedisService {
    */
   async getCachedIdempotencyResult(
     idempotencyKey: string,
-  ): Promise<any | null> {
+  ): Promise<Record<string, unknown> | null> {
     const key = `idempotency:${idempotencyKey}`;
     const cached = await this.cacheManager.get<string>(key);
     return cached ? JSON.parse(cached) : null;
@@ -104,7 +104,9 @@ export class RedisService {
   /**
    * Get cached transfer result
    */
-  async getCachedTransferResult(transactionLogId: string): Promise<any | null> {
+  async getCachedTransferResult(
+    transactionLogId: string,
+  ): Promise<Record<string, unknown> | null> {
     const key = `transfer:${transactionLogId}`;
     const cached = await this.cacheManager.get<string>(key);
     return cached ? JSON.parse(cached) : null;

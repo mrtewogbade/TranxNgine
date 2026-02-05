@@ -10,7 +10,7 @@ import { RedisService } from '../services/redis.service';
 /**
  * RateLimitGuard
  * Uses Redis to implement rate limiting
- * 
+ *
  * Prevents API abuse by limiting requests per IP address
  * Default: 100 requests per minute
  */
@@ -20,13 +20,17 @@ export class RateLimitGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const ip = request.ip || request.connection.remoteAddress;
+    const ip =
+      (request.ip as string) ??
+      ((request.connection as Record<string, unknown>)
+        ?.remoteAddress as string) ??
+      'unknown';
 
     // Rate limit: 100 requests per minute per IP
     const allowed = await this.redisService.checkRateLimit(
       `ip:${ip}`,
       100, // max requests
-      60,  // window in seconds
+      60, // window in seconds
     );
 
     if (!allowed) {

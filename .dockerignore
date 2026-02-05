@@ -1,0 +1,27 @@
+# Node
+node_modules
+npm-debug.log
+pnpm-debug.log
+
+# Build output
+dist
+
+# VCS / IDE
+.git
+.gitignore
+.husky
+.vscode
+.DS_Store
+
+# Logs & misc
+logs
+*.log
+coverage
+
+# Docker
+Dockerfile
+docker-compose.yml
+
+# Environment variables
+.env
+.env.*

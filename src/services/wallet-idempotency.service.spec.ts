@@ -2,15 +2,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { WalletService, TransferResponse } from './wallet.service';
 import { Wallet } from '../models/wallet.model';
-import {
-  Ledger,
-  TransactionType,
-  TransactionStatus,
-} from '../models/ledger.model';
+import { Ledger, TransactionStatus } from '../models/ledger.model';
 import { TransactionLog } from '../models/transaction-log.model';
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Sequelize } from 'sequelize-typescript';
 import { v4 as uuidv4 } from 'uuid';
+import { RedisService } from './redis.service';
 
 describe('WalletService - Idempotency Tests (Part A)', () => {
   let service: WalletService;
@@ -35,7 +32,7 @@ describe('WalletService - Idempotency Tests (Part A)', () => {
       providers: [
         WalletService,
         {
-          provide: require('../services/redis.service').RedisService,
+          provide: RedisService,
           useValue: new (class {
             private store = new Map<string, string>();
             async cacheWalletBalance(k: string, v: string) {

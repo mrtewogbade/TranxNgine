@@ -30,9 +30,8 @@ export class IdempotencyInterceptor implements NestInterceptor {
 
     const existing = await this.cacheManager.get<any>(cacheKey);
     if (existing) {
-      if ((existing as any).status === 'completed')
-        return of((existing as any).data);
-      if ((existing as any).status === 'processing')
+      if (existing.status === 'completed') return of(existing.data);
+      if (existing.status === 'processing')
         throw new ConflictException('Request is being processed');
     }
 

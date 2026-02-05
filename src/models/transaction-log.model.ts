@@ -17,12 +17,12 @@ import { Ledger, TransactionStatus } from './ledger.model';
 /**
  * TransactionLog Model
  * Tracks all wallet operations with idempotency keys
- * 
+ *
  * Purpose:
  * 1. Idempotency: Prevent duplicate transactions from double-taps
  * 2. Audit Trail: Record all transaction attempts (success, pending, failed)
  * 3. Recovery: If connection drops during transaction, we have a record
- * 
+ *
  * Lifecycle:
  * 1. Created in PENDING state BEFORE main transaction
  * 2. Updated to COMPLETED after successful transaction

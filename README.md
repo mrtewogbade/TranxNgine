@@ -1,98 +1,144 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Sycamore — Practical Assessment
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+This repository contains the practical assessment implementation for the Sycamore Backend Engineer exercise.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+**What this README contains:**
+- **Quick start**: install, env, run, and test commands.
+- **Assessment tasks**: overview of the Idempotent Wallet and Interest Accumulator.
+- **Design notes**: idempotency, concurrency control, and math precision.
+- **Submission checklist**: what to include before submitting.
 
-## Description
+**Timeline:** Submit by 12:00 PM Thursday, 5th February 2026.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+**Prerequisites**
+- Node.js (v18+ recommended)
+- pnpm (or npm/yarn)
+- PostgreSQL (local or docker)
+- Redis (optional; required for idempotency cache if configured)
 
-## Project setup
+**Quick Start**
+
+1. Install dependencies
 
 ```bash
-$ pnpm install
+pnpm install
 ```
 
-## Compile and run the project
+2. Copy environment variables
 
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+cp .env.example .env
+# Edit .env to match your local DB/Redis settings
 ```
 
-## Run tests
+Example `.env` variables (common):
+
+- `DATABASE_URL=postgres://postgres:postgres@localhost:5432/sycamore_dev`
+- `REDIS_URL=redis://localhost:6379`
+- `PORT=3000`
+- `IDEMPOTENCY_CACHE=redis` # optional
+
+3. Run database migrations
+
+If you have `sequelize-cli` installed via devDependencies:
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+npx sequelize db:migrate --env development
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Or via Docker compose (recommended for easy setup):
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+docker compose up -d postgres redis
+# then run migrations inside app container or locally using DATABASE_URL
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+4. Start in dev mode
 
-## Resources
+```bash
+pnpm start:dev
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+5. Run tests
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```bash
+pnpm test
+pnpm test:cov  # optional coverage
+```
 
-## Support
+**Project Structure (high level)**
+- `src/` — application source
+- `src/controllers` — HTTP controllers (e.g., wallet endpoints)
+- `src/services` — domain services (wallet logic, interest calc)
+- `src/common/dto` — DTOs used across controllers
+- `database/migrations` — Sequelize migrations
+- `test/` — unit and integration tests
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+**Assessment Tasks (what to review)**
 
-## Stay in touch
+1) The Idempotent Wallet
+- Endpoint: `POST /wallets/:id/transfer`
+- Requirements implemented:
+  - Create a `TransactionLog` entry in `PENDING` state before attempting the transfer.
+  - Use an `idempotencyKey` header (`X-Idempotency-Key`) to deduplicate repeated requests.
+  - Protect critical sections with row-level locking (Sequelize `SELECT ... FOR UPDATE`) to prevent double-spending.
+  - Commit both debit and credit ledgers in a single DB transaction. On failure, the transaction rolls back and `TransactionLog` is updated accordingly.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+Implementation notes:
+- Idempotency behavior: when a request with an existing idempotency key has a `COMPLETED` TransactionLog, return the prior result and do not re-run the transfer.
+- If a `PENDING` log exists for the same key, the request will wait/retry or return the current `PENDING` state depending on the configured strategy.
 
-## License
+2) The Interest Accumulator
+- Service that computes daily interest using a fixed annual percentage rate (default: 27.5% p.a.).
+- Uses `decimal.js` to avoid floating-point precision issues.
+- Interest formula (daily): let the annual rate be $r_{annual}$, then daily rate $r_{daily}=\\frac{r_{annual}}{365}$. Daily interest over $d$ days on principal $P$ is:
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+$$
+\\text{interest} = P \\times r_{daily} \\times d
+$$
+
+- Leap-year handling: when precise day-count is required, the service counts actual days between dates and applies per-day computation; tests include leap-year cases.
+
+**Key Files to Review**
+- [src/controllers/wallet.controller.ts](src/controllers/wallet.controller.ts)
+- [src/services/wallet.service.ts](src/services/wallet.service.ts)
+- [src/utils/money-math.util.ts](src/utils/money-math.util.ts)
+- [database/migrations](database/migrations)
+- [src/common/dto](src/common/dto)
+
+**Design & Reasoning (short)**
+
+- Idempotency: store an authoritative record (`TransactionLog`) keyed by `idempotencyKey`. This ensures a deterministic response for repeated requests and makes retries safe.
+- Atomicity: perform debit and credit within a single database transaction and use row-level locks on the wallets involved to avoid race conditions.
+- Precision: use `decimal.js` for financial math and avoid `Number` arithmetic for money. Tests validate edge cases and rounding behavior.
+- Observability: `TransactionLog` status transitions (PENDING → COMPLETED/FAILED) provide traceability for auditing and debugging.
+
+**How to verify locally (short checklist)**
+- Start Postgres + Redis (or ensure connections configured in `.env`).
+- Run migrations.
+- Start the server.
+- Use `curl` or Postman to exercise endpoints. Example transfer:
+
+```bash
+curl -X POST http://localhost:3000/wallets/<from-wallet-id>/transfer \\
+  -H "X-Idempotency-Key: my-unique-key" \\
+  -H "Content-Type: application/json" \\
+  -d '{"toWalletId":"<to-wallet-id>","amount":"100.00"}'
+```
+
+If you re-send the same request with the same `X-Idempotency-Key`, the service returns the original result and does not create duplicate ledger entries.
+
+**Testing guidance**
+- Unit tests are written with Jest. Run `pnpm test`.
+- Focus tests:
+  - `src/utils/money-math.util.spec.ts` — math correctness including leap-year scenarios.
+  - Service-level tests for idempotency and transfer error handling.
+
+
+
+
+
+---
+
+
+

@@ -186,13 +186,10 @@ export class MoneyMath {
    */
   private static getDaysBetween(start: Date, end: Date): number {
     const oneDay = 24 * 60 * 60 * 1000; // milliseconds in a day
-    // Use floor for stable day differences and treat range as inclusive of start and end
-    // so that a full-year from Jan 1 to Dec 31 returns 365/366 correctly as expected
     const diff = Math.floor(
       Math.abs((end.getTime() - start.getTime()) / oneDay),
     );
-    // count inclusive days when end >= start
-    return diff + 1;
+    return diff;
   }
 
   /**

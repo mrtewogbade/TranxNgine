@@ -13,7 +13,9 @@ describe('MoneyMath', () => {
       });
 
       it('should handle large numbers', () => {
-        expect(MoneyMath.add('999999999999.99', '0.01')).toBe('1000000000000.00');
+        expect(MoneyMath.add('999999999999.99', '0.01')).toBe(
+          '1000000000000.00',
+        );
       });
 
       it('should handle zero correctly', () => {
@@ -71,7 +73,9 @@ describe('MoneyMath', () => {
       });
 
       it('should throw error on division by zero', () => {
-        expect(() => MoneyMath.divide('100.00', '0')).toThrow('Division by zero');
+        expect(() => MoneyMath.divide('100.00', '0')).toThrow(
+          'Division by zero',
+        );
       });
 
       it('should round to 2 decimal places', () => {
@@ -166,7 +170,11 @@ describe('MoneyMath', () => {
       it('should calculate simple daily interest correctly', () => {
         // $1000 at 5% annual for 30 days
         // Expected: 1000 * 0.05 * (30/365) = 4.11
-        const interest = MoneyMath.calculateDailyInterest('1000.00', '0.05', 30);
+        const interest = MoneyMath.calculateDailyInterest(
+          '1000.00',
+          '0.05',
+          30,
+        );
         expect(interest).toBe('4.11');
       });
 
@@ -180,7 +188,11 @@ describe('MoneyMath', () => {
       it('should calculate interest for full year (365 days)', () => {
         // $1000 at 5% annual for 365 days
         // Expected: 1000 * 0.05 * (365/365) = 50.00
-        const interest = MoneyMath.calculateDailyInterest('1000.00', '0.05', 365);
+        const interest = MoneyMath.calculateDailyInterest(
+          '1000.00',
+          '0.05',
+          365,
+        );
         expect(interest).toBe('50.00');
       });
 
@@ -190,7 +202,11 @@ describe('MoneyMath', () => {
       });
 
       it('should handle zero rate', () => {
-        const interest = MoneyMath.calculateDailyInterest('1000.00', '0.00', 30);
+        const interest = MoneyMath.calculateDailyInterest(
+          '1000.00',
+          '0.00',
+          30,
+        );
         expect(interest).toBe('0.00');
       });
 
@@ -205,34 +221,52 @@ describe('MoneyMath', () => {
         const start = new Date('2023-01-01');
         const end = new Date('2023-01-31'); // 30 days
         // $1000 at 5% for 30 days in 365-day year
-        const interest = MoneyMath.calculateInterestWithLeapYear('1000.00', '0.05', start, end);
+        // Interest = 1000 * 0.05 * (30 / 365) = 4.109589... = 4.11
+        const interest = MoneyMath.calculateInterestWithLeapYear(
+          '1000.00',
+          '0.05',
+          start,
+          end,
+        );
         expect(interest).toBe('4.11');
       });
 
       it('should calculate interest in leap year', () => {
         const start = new Date('2024-01-01');
-        const end = new Date('2024-12-31'); // Full leap year (366 days)
-        // $1000 at 5% for 366 days in 366-day year
-        const interest = MoneyMath.calculateInterestWithLeapYear('1000.00', '0.05', start, end);
-        expect(interest).toBe('50.00');
+        const end = new Date('2024-12-31'); // 365 days (difference between dates)
+        // $1000 at 5% for 365 days in 366-day year (leap year)
+        // Interest = 1000 * 0.05 * (365 / 366) = 49.863...
+        const interest = MoneyMath.calculateInterestWithLeapYear(
+          '1000.00',
+          '0.05',
+          start,
+          end,
+        );
+        expect(interest).toBe('49.86');
       });
 
       it('should handle period crossing Feb 29 in leap year', () => {
         const start = new Date('2024-02-15');
         const end = new Date('2024-03-15'); // Crosses Feb 29, 2024
-        const days = 29; // Feb 15-29 (15 days) + Mar 1-15 (15 days) - 1 = 29 days
         // Should use 366 as denominator
-        const interest = MoneyMath.calculateInterestWithLeapYear('1000.00', '0.05', start, end);
-        const expected = MoneyMath.multiply(
-          MoneyMath.multiply('1000.00', '0.05'),
-          MoneyMath.divide(days.toString(), '366')
+        const interest = MoneyMath.calculateInterestWithLeapYear(
+          '1000.00',
+          '0.05',
+          start,
+          end,
         );
-        expect(interest).toBe(expected);
+        // 29 days: 1000 * 0.05 * (29 / 366) = 3.96...
+        expect(interest).toBe('3.96');
       });
 
       it('should handle same day (zero interest)', () => {
         const date = new Date('2024-01-01');
-        const interest = MoneyMath.calculateInterestWithLeapYear('1000.00', '0.05', date, date);
+        const interest = MoneyMath.calculateInterestWithLeapYear(
+          '1000.00',
+          '0.05',
+          date,
+          date,
+        );
         expect(interest).toBe('0.00');
       });
     });
@@ -251,12 +285,12 @@ describe('MoneyMath', () => {
     it('should maintain precision through multiple operations', () => {
       // Start with $100
       let amount = '100.00';
-      
+
       // Add $0.10 ten times
       for (let i = 0; i < 10; i++) {
         amount = MoneyMath.add(amount, '0.10');
       }
-      
+
       // Should be exactly $101.00, not 100.99999... or 101.00000...1
       expect(amount).toBe('101.00');
     });
@@ -265,9 +299,9 @@ describe('MoneyMath', () => {
       const result = MoneyMath.add(
         MoneyMath.subtract(
           MoneyMath.multiply('100.00', '1.5'),
-          MoneyMath.divide('50.00', '2')
+          MoneyMath.divide('50.00', '2'),
         ),
-        '10.00'
+        '10.00',
       );
       // (100 * 1.5) - (50 / 2) + 10 = 150 - 25 + 10 = 135
       expect(result).toBe('135.00');
@@ -279,14 +313,24 @@ describe('MoneyMath', () => {
       // Test through calculateInterestWithLeapYear which uses isLeapYear internally
       const leapYearStart = new Date('2024-02-28');
       const leapYearEnd = new Date('2024-03-01'); // Crosses Feb 29
-      
+
       const nonLeapYearStart = new Date('2023-02-28');
       const nonLeapYearEnd = new Date('2023-03-01'); // No Feb 29
-      
+
       // Both should calculate but with different denominators
-      const leapResult = MoneyMath.calculateInterestWithLeapYear('1000.00', '0.05', leapYearStart, leapYearEnd);
-      const nonLeapResult = MoneyMath.calculateInterestWithLeapYear('1000.00', '0.05', nonLeapYearStart, nonLeapYearEnd);
-      
+      const leapResult = MoneyMath.calculateInterestWithLeapYear(
+        '1000.00',
+        '0.05',
+        leapYearStart,
+        leapYearEnd,
+      );
+      const nonLeapResult = MoneyMath.calculateInterestWithLeapYear(
+        '1000.00',
+        '0.05',
+        nonLeapYearStart,
+        nonLeapYearEnd,
+      );
+
       // Results should differ because of different day counts
       expect(leapResult).not.toBe(nonLeapResult);
     });
@@ -295,15 +339,15 @@ describe('MoneyMath', () => {
   describe('Real-world Scenarios', () => {
     it('should handle wallet transactions accurately', () => {
       let balance = '1000.00';
-      
+
       // Credit $250.50
       balance = MoneyMath.add(balance, '250.50');
       expect(balance).toBe('1250.50');
-      
+
       // Debit $100.25
       balance = MoneyMath.subtract(balance, '100.25');
       expect(balance).toBe('1150.25');
-      
+
       // Credit $0.01
       balance = MoneyMath.add(balance, '0.01');
       expect(balance).toBe('1150.26');
@@ -311,12 +355,12 @@ describe('MoneyMath', () => {
 
     it('should prevent floating-point accumulation errors', () => {
       let balance = '0.00';
-      
+
       // Add $0.10 one hundred times
       for (let i = 0; i < 100; i++) {
         balance = MoneyMath.add(balance, '0.10');
       }
-      
+
       // Should be exactly $10.00
       expect(balance).toBe('10.00');
     });

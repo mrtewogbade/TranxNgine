@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SequelizeModule } from '@nestjs/sequelize';
-import { WalletService, TransferResponse } from './wallet.service';
+import { WalletService } from './wallet.service';
 import { Wallet } from '../models/wallet.model';
 import { Ledger, TransactionType } from '../models/ledger.model';
 import { TransactionLog } from '../models/transaction-log.model';
